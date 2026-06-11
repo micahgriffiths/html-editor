@@ -1,8 +1,8 @@
 """
 Agent router: classifies user intent → selects tool(s) → executes → self-checks.
-Single-turn by default. next_action hook is in place for future chaining.
+Supports multiple tool calls per turn, threading HTML forward between each step.
 """
-import json
+
 from providers.llm import complete
 from tools.definitions import TOOLS
 from tools.implementations import (
@@ -31,21 +31,19 @@ def run(
       {
         "html": str,               # updated HTML (or unchanged on revert/summary)
         "message": str,            # human-readable result description
-        "tool_used": str,
-        "self_check": dict,
+        "tool_used": str,          # comma-separated list if multiple
+        "self_check": dict,        # result of last check
         "version_saved": bool,
       }
     """
     system = _build_system_prompt(sections, style_spec)
-
     messages = chat_history + [{"role": "user", "content": user_message}]
 
-    # Step 1: Let the model pick a tool
+    # Step 1: Let the model pick tool(s)
     response = complete(messages, system=system, tools=TOOLS)
-
     tool_calls = response.get("tool_calls", [])
 
-    # If no tool was called, return the text response directly
+    # No tool called — return text response directly
     if not tool_calls:
         return {
             "html": html,
@@ -55,45 +53,53 @@ def run(
             "version_saved": False,
         }
 
-    # Step 2: Execute the first tool call (single-turn mode)
-    # next_action hook: if a tool returns next_action, we could loop here
-    tool_call = tool_calls[0]
-    result = _dispatch(tool_call, html, style_spec, sections, version_store)
-
-    new_html = result["html"]
-    tool_used = tool_call["name"]
-
-    # Step 3: Self-check (skip for revert and summary - they don't modify HTML)
+    # Step 2: Execute all tool calls in order, threading HTML forward between them
+    new_html = html
+    messages_log = []
     check_result = {"passed": True, "issues": []}
-    if tool_used not in ("revert", "get_page_summary"):
-        check_result = self_check(html, new_html, user_message)
+    any_version_saved = False
 
-        # Retry once if self-check fails
-        if not check_result["passed"] and MAX_RETRIES > 0:
-            retry_instruction = (
-                f"{user_message}\n\n"
-                f"Previous attempt had issues: {', '.join(check_result['issues'])}. "
-                f"Please fix these while applying the edit."
-            )
-            retry_messages = messages + [{"role": "user", "content": retry_instruction}]
-            retry_response = complete(retry_messages, system=system, tools=TOOLS)
-            retry_calls = retry_response.get("tool_calls", [])
-            if retry_calls:
-                retry_result = _dispatch(retry_calls[0], html, style_spec, sections, version_store)
-                retry_check = self_check(html, retry_result["html"], user_message)
-                if retry_check["passed"]:
-                    new_html = retry_result["html"]
-                    check_result = retry_check
-                    result["message"] = retry_result["message"] + " (auto-corrected)"
+    for tool_call in tool_calls:
+        tool_used = tool_call["name"]
+        result = _dispatch(tool_call, new_html, style_spec, sections, version_store)
+        messages_log.append(f"[{tool_used}] {result['message']}")
 
-    version_saved = tool_used not in ("revert", "get_page_summary")
+        # Self-check each HTML-modifying step
+        if tool_used not in ("revert", "get_page_summary"):
+            step_check = self_check(new_html, result["html"], user_message)
+
+            # Retry once if self-check fails
+            if not step_check["passed"] and MAX_RETRIES > 0:
+                retry_instruction = (
+                    f"{user_message}\n\n"
+                    f"Previous attempt had issues: {', '.join(step_check['issues'])}. "
+                    f"Please fix these while applying the edit."
+                )
+                retry_response = complete(
+                    messages + [{"role": "user", "content": retry_instruction}],
+                    system=system,
+                    tools=TOOLS,
+                )
+                retry_calls = retry_response.get("tool_calls", [])
+                if retry_calls:
+                    retry_result = _dispatch(retry_calls[0], new_html, style_spec, sections, version_store)
+                    retry_check = self_check(new_html, retry_result["html"], user_message)
+                    if retry_check["passed"]:
+                        result = retry_result
+                        step_check = retry_check
+                        messages_log[-1] += " (auto-corrected)"
+
+            check_result = step_check
+            any_version_saved = True
+
+        new_html = result["html"]
 
     return {
         "html": new_html,
-        "message": result["message"],
-        "tool_used": tool_used,
+        "message": "\n".join(messages_log),
+        "tool_used": ", ".join(tc["name"] for tc in tool_calls),
         "self_check": check_result,
-        "version_saved": version_saved,
+        "version_saved": any_version_saved,
     }
 
 
@@ -124,6 +130,9 @@ def _build_system_prompt(sections: list[dict], style_spec: dict) -> str:
         "You are an intelligent HTML page editor. "
         "The user will give you natural language instructions to edit an HTML page.\n\n"
         "Use the available tools to fulfill the request. "
+        "You may call multiple tools in a single turn if the instruction requires changes "
+        "to more than one section — for example, 'shorten the footer and make the hero heading larger' "
+        "should call edit_section twice.\n\n"
         "Pick the most targeted tool available - prefer edit_section over edit_global_style "
         "unless the change truly affects the whole page.\n\n"
         f"Page sections available:\n{section_list}\n\n"
