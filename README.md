@@ -43,6 +43,8 @@ A split-pane AI-powered HTML editor. Paste an HTML page on the left, give natura
 
 ## Setup
 
+Once you've cloned the repo and `cd` into `html-editor`:
+
 ### 1. Backend
 
 ```bash

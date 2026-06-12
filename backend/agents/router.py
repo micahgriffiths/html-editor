@@ -59,6 +59,8 @@ def run(
     check_result = {"passed": True, "issues": []}
     any_version_saved = False
 
+    reverted_to = None  # tracks the version_id if a revert tool ran
+
     for tool_call in tool_calls:
         tool_used = tool_call["name"]
         result = _dispatch(tool_call, new_html, style_spec, sections, version_store)
@@ -91,6 +93,10 @@ def run(
 
             check_result = step_check
             any_version_saved = True
+        elif tool_used == "revert":
+            # Capture the version_id the revert tool resolved to so the server
+            # can truncate its version list and set a clean head.
+            reverted_to = result.get("reverted_to")
 
         new_html = result["html"]
 
@@ -100,6 +106,7 @@ def run(
         "tool_used": ", ".join(tc["name"] for tc in tool_calls),
         "self_check": check_result,
         "version_saved": any_version_saved,
+        "reverted_to": reverted_to,
     }
 
 

@@ -38,6 +38,7 @@ class Session:
         self.sections: list[dict] = []
         self.versions: list[dict] = []
         self.chat_history: list[dict] = []
+        self._head_version_id: int = -1
 
     def save_version(self, html: str, description: str) -> dict:
         version = {
@@ -48,11 +49,23 @@ class Session:
         }
         self.versions.append(version)
         self.html = html
+        self._head_version_id = version["id"]
         return version
+
+    def revert_to_version(self, version_id: int) -> dict:
+        """
+        Append a new version whose content matches the target, advancing the
+        head forward. Full history is preserved — the revert is just a new
+        entry on the timeline, not an erasure of anything after it.
+        """
+        target = next((v for v in self.versions if v["id"] == version_id), None)
+        if target is None:
+            raise KeyError(f"Version {version_id} not found")
+        return self.save_version(target["html"], f"Revert to V{version_id}")
 
     @property
     def current_version_id(self) -> int:
-        return len(self.versions) - 1
+        return self._head_version_id
 
 
 session = Session()
@@ -129,8 +142,14 @@ def chat(req: ChatRequest):
     if result["version_saved"] and new_html != session.html:
         version = session.save_version(new_html, req.message[:80])
     elif result.get("reverted_to") is not None:
-        # Revert: update current HTML without adding a new version
-        session.html = new_html
+        # Revert: append a new version entry with the target's content so the
+        # full history is preserved and the new entry becomes the head.
+        # Future edits build on this new head; nothing is deleted.
+        try:
+            version = session.revert_to_version(result["reverted_to"])
+        except KeyError:
+            # Fallback: target version unknown, just advance html in place
+            session.html = new_html
 
     # Append to chat history
     session.chat_history.append({"role": "user", "content": req.message})

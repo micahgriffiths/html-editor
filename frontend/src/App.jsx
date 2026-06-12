@@ -65,6 +65,9 @@ export default function App() {
             timestamp: v.timestamp,
           }))
         );
+        // Use the last version in the list as the head. The "revert" action
+        // works the same way as git, where "reverting" just makes a new version
+        // that is identical to the desired previous version and appends that to the history
         setCurrentVersionId(data.versions[data.versions.length - 1].id);
       }
 
