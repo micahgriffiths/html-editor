@@ -97,4 +97,33 @@ TOOLS = [
             "required": [],
         },
     },
+    {
+        "type": "function",
+        "name": "regenerate_page",
+        "description": (
+            "Fully reconceptualises and rewrites the entire page from scratch using a "
+            "plan-then-generate pipeline. Use this when the instruction implies a change "
+            "in strategic direction, audience, tone, or overall purpose — for example, "
+            "'refocus the page on enterprise customers' or 'make this feel more like a "
+            "research lab than a startup'. "
+            "Do NOT use for targeted visual or content tweaks (font changes, colour "
+            "updates, copy edits, layout adjustments within a section) — prefer "
+            "edit_section or edit_global_style for those."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "instruction": {
+                    "type": "string",
+                    "description": (
+                        "The high-level reconceptualisation goal. Be specific about the "
+                        "new direction, audience, or purpose. Example: 'Reframe this page "
+                        "to emphasise the hard-science credibility of the team rather than "
+                        "the commercial product.'"
+                    ),
+                }
+            },
+            "required": ["instruction"],
+        },
+    }
 ]

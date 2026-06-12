@@ -12,6 +12,7 @@ from tools.implementations import (
     revert,
     get_page_summary,
 )
+from tools.regenerate_page import regenerate_page
 from agents.self_check import self_check
 
 MAX_RETRIES = 2
@@ -124,6 +125,8 @@ def _dispatch(tool_call: dict, html: str, style_spec: dict, sections: list, vers
         return revert(html, style_spec, sections, version_store=version_store, **args)
     elif name == "get_page_summary":
         return get_page_summary(html, style_spec, sections)
+    elif name == "regenerate_page":
+        return regenerate_page(html, style_spec, sections, **args)
     else:
         return {"html": html, "message": f"Unknown tool: {name}", "next_action": None}
 
@@ -150,5 +153,10 @@ def _build_system_prompt(sections: list[dict], style_spec: dict, version_store: 
         f"Page fonts: {', '.join(style_spec.get('fonts', []))}\n"
         f"Page colors: {', '.join(style_spec.get('colors', [])[:8])}\n\n"
         f"Version history (use exact IDs when calling the revert tool):\n{version_list}\n\n"
-        "When in doubt about which section to target, use get_page_summary first."
+        "When in doubt about which section to target, use get_page_summary first.\n\n"
+        "Tool selection guidance:\n"
+        "  - edit_section / edit_global_style: targeted visual or content tweaks\n"
+        "  - regenerate_section: rewrite one section from scratch\n"
+        "  - regenerate_page: full reconceptualisation only - change of direction,\n"
+        "    audience, or purpose. Do not use for tweaks, even sweeping ones."
     )

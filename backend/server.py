@@ -151,6 +151,10 @@ def chat(req: ChatRequest):
             # Fallback: target version unknown, just advance html in place
             session.html = new_html
 
+    # Update section map 
+    if result["tool_used"] == "regenerate_page":
+        session.sections = parse_sections(new_html)
+
     # Append to chat history
     session.chat_history.append({"role": "user", "content": req.message})
     session.chat_history.append({"role": "assistant", "content": result["message"]})
