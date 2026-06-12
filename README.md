@@ -127,6 +127,18 @@ This ensures the input and output of the llms are within the context window.
 
 ---
 
+## Future Additions
+
+- Add section tool call to allow you to add a new section; regenerates section map after completion
+- Remove seciton tool call to allow you to remove an existing seciton
+- Reorder sections tool to change the order of the sections without editing them
+- Full task planning with chain of thought for the tool calls to improve the performance on potentially confusing tasks
+- Improved UI (hover over an element in the preview, click on it and a chat appears. This can be used for more specific targeted edits, useful when proofreading a webpage)
+- Brand context scraping from the webpage via LLM, and provide this context to the system prompt to make regeneration more on-brand
+- Support for Claude Platform, Gemini platform
+
+---
+
 ## Project structure
 
 ```
