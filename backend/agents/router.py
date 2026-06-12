@@ -14,8 +14,12 @@ from tools.implementations import (
 )
 from tools.regenerate_page import regenerate_page
 from agents.self_check import self_check
+import logging
 
 MAX_RETRIES = 2
+
+
+logger = logging.getLogger(__name__)
 
 
 def run(
@@ -43,6 +47,7 @@ def run(
     # Step 1: Let the model pick tool(s)
     response = complete(messages, system=system, tools=TOOLS)
     tool_calls = response.get("tool_calls", [])
+    logger.info(f"Tool selection: {[tc['name'] for tc in tool_calls]} | message: {user_message[:80]}")
 
     # No tool called — return text response directly
     if not tool_calls:
@@ -70,6 +75,7 @@ def run(
         # Self-check each HTML-modifying step
         if tool_used not in ("revert", "get_page_summary"):
             step_check = self_check(new_html, result["html"], user_message)
+            logger.info(f"Self-check: passed={step_check['passed']} issues={step_check['issues']}")
 
             # Retry once if self-check fails
             if not step_check["passed"] and MAX_RETRIES > 0:

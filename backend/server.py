@@ -14,6 +14,13 @@ load_dotenv()
 from ingestion.parser import parse_sections
 from ingestion.style_extractor import extract_style_spec
 from agents.router import run as agent_run
+import logging
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 app = FastAPI(title="HTML Editor API")
 
@@ -50,6 +57,7 @@ class Session:
         self.versions.append(version)
         self.html = html
         self._head_version_id = version["id"]
+        self.sections = parse_sections(html)
         return version
 
     def revert_to_version(self, version_id: int) -> dict:

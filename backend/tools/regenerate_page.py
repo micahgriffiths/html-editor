@@ -14,6 +14,9 @@ import json
 import concurrent.futures
 from providers.llm import complete
 from tools.implementations import get_page_summary
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Max parallel section generation calls. Keep low enough to avoid rate limits.
 _MAX_WORKERS = 4
@@ -34,6 +37,8 @@ def regenerate_page(
     # Step 2 — Plan: design brief + per-section instructions + <head>
     # ------------------------------------------------------------------
     plan = _plan(summary, style_spec, instruction)
+    logger.info(f"Planner brief: {plan['brief']}")
+    logger.info(f"Planner sections: {[s['id'] for s in plan['sections']]}")
     if plan is None:
         return {
             "html": html,
