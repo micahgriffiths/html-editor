@@ -36,7 +36,7 @@ def run(
         "version_saved": bool,
       }
     """
-    system = _build_system_prompt(sections, style_spec)
+    system = _build_system_prompt(sections, style_spec, version_store)
     messages = chat_history + [{"role": "user", "content": user_message}]
 
     # Step 1: Let the model pick tool(s)
@@ -128,10 +128,14 @@ def _dispatch(tool_call: dict, html: str, style_spec: dict, sections: list, vers
         return {"html": html, "message": f"Unknown tool: {name}", "next_action": None}
 
 
-def _build_system_prompt(sections: list[dict], style_spec: dict) -> str:
+def _build_system_prompt(sections: list[dict], style_spec: dict, version_store: list[dict]) -> str:
     section_list = "\n".join(
         f"  - {s['selector']} ({s['tag']}): {s['text_preview'][:80]}"
         for s in sections
+    )
+    version_list = "\n".join(
+        f"  - V{v['id']}: {v['description']}"
+        for v in version_store
     )
     return (
         "You are an intelligent HTML page editor. "
@@ -145,5 +149,6 @@ def _build_system_prompt(sections: list[dict], style_spec: dict) -> str:
         f"Page sections available:\n{section_list}\n\n"
         f"Page fonts: {', '.join(style_spec.get('fonts', []))}\n"
         f"Page colors: {', '.join(style_spec.get('colors', [])[:8])}\n\n"
+        f"Version history (use exact IDs when calling the revert tool):\n{version_list}\n\n"
         "When in doubt about which section to target, use get_page_summary first."
     )
